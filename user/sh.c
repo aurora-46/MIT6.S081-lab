@@ -3,6 +3,7 @@
 #include "kernel/types.h"
 #include "user/user.h"
 #include "kernel/fcntl.h"
+#include "kernel/stat.h"
 
 // Parsed command representation
 #define EXEC  1
@@ -131,10 +132,17 @@ runcmd(struct cmd *cmd)
   exit(0);
 }
 
+/*
+向2写入$,读取用户命令
+*/
 int
 getcmd(char *buf, int nbuf)
 {
-  write(2, "$ ", 2);
+  struct stat st;
+  fstat(0, &st);
+  if(st.type==T_DEVICE)
+    write(2, "$ ", 2);
+  
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
   if(buf[0] == 0) // EOF
@@ -163,6 +171,12 @@ main(void)
       buf[strlen(buf)-1] = 0;  // chop \n
       if(chdir(buf+3) < 0)
         fprintf(2, "cannot cd %s\n", buf+3);
+      continue;
+    }
+    if(buf[0] == 'w' && buf[1] == 'a' && buf[2] == 'i'&& buf[3] == 't'){
+      // Chdir must be called by the parent, not the child.
+      int n=atoi(buf+5);
+      sleep(n);
       continue;
     }
     if(fork1() == 0)
@@ -308,6 +322,9 @@ gettoken(char **ps, char *es, char **q, char **eq)
   return ret;
 }
 
+/*
+忽略空格、换行，确定更改后的*ps是否含有toks
+*/
 int
 peek(char **ps, char *es, char *toks)
 {
